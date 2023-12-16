@@ -2,8 +2,6 @@
 
 A helper for collecting B3 stocks and exporting it to CSV.
 
-<hr>
-
 ## Dependencies
 
 The only previously required dependencies are:
@@ -21,14 +19,10 @@ Steps to configure the project:
 - Install Poetry with `pip install poetry` and also add it to path(optional)
 - Install the project dependencies running `poetry install`
 
-<hr>
-
 ## Run
 
 First spawn `poetry shell` then run the project with:
 
 - `python3 -m main run`
-
-<hr>
 
 Enjoy!
