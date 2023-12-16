@@ -25,4 +25,6 @@ First spawn `poetry shell` then run the project with:
 
 - `python3 -m main run`
 
+<hr>
+
 Enjoy!
