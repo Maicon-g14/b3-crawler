@@ -1,24 +1,23 @@
-import os
-from typing import Any
-import httpx
-import json
-from base64 import b64decode, b64encode
-from urllib.parse import unquote, quote
-from pydantic import BaseModel
-from tqdm import tqdm
-import pandas as pd
-from pandas import DataFrame
-from typing import Optional
-from loguru import logger
 import time
-from b3.utils import save_json, load_json
+import json
+from urllib.parse import quote
+from typing import Any, Optional
+
+from pandas import DataFrame
+import httpx
+from tqdm import tqdm
+from pydantic import BaseModel
+from loguru import logger
+
+from b3.utils import save_json, load_json, encode_params
 
 
-class Acao(BaseModel):
+class Stock(BaseModel):
+    codeCVM: int
     sector: str
     segmentTipe: str
     segment: str
-    codeCVM: int
+    segmentEng: str
     issuingCompany: str
     companyName: str
     tradingName: str
@@ -27,27 +26,18 @@ class Acao(BaseModel):
     typeBDR: str
     dateListing: str
     status: str
-    segment: str
-    segmentEng: str
     type: int
     market: str
 
 
 class Crawler:
-    def __init__(self) -> None:
+    def __init__(self, final_filepath: str = "data/stocks.csv") -> None:
         self.base_url = (
             "https://sistemaswebb3-listados.b3.com.br/listedCompaniesProxy/CompanyCall/"
         )
         self.search_endpoint = "GetIndustryClassification/"
         self.results_endpoint = "GetInitialCompanies/"
-
-    def decode_params(self, params: str | bytes) -> Any:
-        return json.loads(b64decode(params).decode("utf-8"))
-
-    def encode_params(self, params: dict) -> str:
-        return b64encode(str(json.dumps(params).replace(" ", "")).encode()).decode(
-            "utf-8"
-        )
+        self.final_filepath = final_filepath
 
     def req_page(
         self,
@@ -78,7 +68,7 @@ class Crawler:
             "segment": quote(segment),
         }
 
-        url_params = self.encode_params(params)
+        url_params = encode_params(params)
 
         res = self.req_page(self.base_url + self.results_endpoint + url_params)
 
@@ -108,17 +98,43 @@ class Crawler:
             return self.fetch_industries(segment)
 
     def fetch_all(self):
-        resps = {}
+        stocks = []
+
+        logger.info("Starting crawler...")
 
         resp = self.load_search()
 
         for i in tqdm(resp):
             for j in i["subSectors"]:
                 for segment in j["segment"]:
-                    resps[segment] = self.load_industries(segment)
+                    industries = self.load_industries(segment)
+
+                    for stock in industries["results"]:
+                        stocks.append(
+                            Stock(
+                                codeCVM=int(stock["codeCVM"]),
+                                sector=i["sector"],
+                                segmentTipe=j["describle"],
+                                segment=segment,
+                                segmentEng=stock["segmentEng"],
+                                issuingCompany=stock["issuingCompany"],
+                                companyName=stock["companyName"],
+                                tradingName=stock["tradingName"],
+                                cnpj=int(stock["cnpj"]),
+                                marketIndicator=int(stock["marketIndicator"]),
+                                typeBDR=stock["typeBDR"],
+                                dateListing=stock["dateListing"],
+                                status=stock["status"],
+                                type=int(stock["type"]),
+                                market=stock["market"],
+                            ).model_dump()
+                        )
+
+        res = DataFrame(stocks).set_index("codeCVM")
+        res.to_csv(self.final_filepath)
 
         logger.success("Done!")
-        print(resps)
+        logger.info(f"Final data saved in \"{self.final_filepath}\"")
 
 
 if __name__ == "__main__":
